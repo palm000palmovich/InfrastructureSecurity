@@ -17,6 +17,8 @@ r - чтение, w - запись, x - выполнение
 Шелл `/usr/sbin/nologin `, как у daemon означает, что под УЗ нельзя войти интерактивно.
 
 
+***Задание 1***
+
 **SUDO**
 
 позволяет пользователю произвести действие под рутом, не входя под ним. Настраивается в /etc/sudoers:
@@ -139,6 +141,8 @@ r - чтение, w - запись, x - выполнение
 
 **Мисконфигурации SUID и SGID**
 
+***SGID***
+
 1) Чтение SUID на head
 
 утилита head читает первые строки файла
@@ -158,3 +162,133 @@ SUID-бит заставляет head выполняться с правами r
 - снятие суид-бита с файла:
 
 ![alt text](<screenshots/Screenshot From 2026-09-19 13-06-54.png>)
+
+
+2) Запись: SUID на cp
+
+Опасность уязвимости: cp с SUID-битом работает от имени root и может перезаписать любой файл в системе.
+
+![alt text](<screenshots/Screenshot From 2026-09-20 14-00-00.png>)
+
+Эксплуатация:
+
+Создаем новую учетку, находясь в системе под учеткой тестового юзера:
+
+![alt text](<screenshots/Screenshot From 2026-09-20 14-23-56.png>)
+
+Затем перезаписываем оригинал:
+
+![alt text](<screenshots/Screenshot From 2026-09-20 14-26-32.png>)
+
+
+Защита:
+
+Снять SUID-бит на cp и удалить бинарник:
+
+![alt text](<screenshots/Screenshot From 2026-09-20 14-30-45.png>)
+
+Восстановить /etc/passwd:
+
+![alt text](<screenshots/Screenshot From 2026-09-20 14-33-56.png>)
+
+
+3) Исполнение: SUID на python3
+
+Создание мисконфига и его эксплуатация:
+
+![alt text](<screenshots/Screenshot From 2026-09-20 14-46-19.png>)
+
+Защита:
+
+![alt text](<screenshots/Screenshot From 2026-09-20 14-47-59.png>)
+
+
+***SGID***
+
+1) Чтение: SGID на less с группой shadow
+
+Создание мисконфига и эксплуатация:
+
+![alt text](<screenshots/Screenshot From 2026-09-20 15-32-01.png>)
+
+![alt text](<screenshots/Screenshot From 2026-09-20 15-39-49.png>)
+
+Отсюда видим, что у обычного less недостаточно прав для чтения /etc/shadow, так как он не находится в соответствующей группе, а у нашего кастомного less такая возможность есть, так как мы ему выдали права на группу shadow.
+
+Защита:
+
+![alt text](<screenshots/Screenshot From 2026-09-20 15-42-08.png>)
+
+
+2) Запись: SGID с группой shadow
+
+Сперва создадим простейший копировальщик на С:
+
+![alt text](<screenshots/Screenshot From 2026-09-20 17-58-00.png>)
+
+Скомпилируем и положим бинарник в /usr/local/bin/filecopy_sgid, а затем подготовим мисконфиг(команда `gcc -o /usr/local/bin/filecopy_sgid ~/filecopy.c`)
+
+Создадим мисконфиг:
+
+![alt text](<screenshots/Screenshot From 2026-09-20 17-59-19.png>)
+
+Затем подготовим модифицированный ~/shadow_modified - полная копия /etc/shadow с паролем root, измененным на hacker123:
+
+![alt text](<screenshots/Screenshot From 2026-09-20 17-47-05.png>)
+
+- команда `sudo cat /etc/shadow > ~/shadow_copy` копирует оригинальный /etc/shadow  домашнюю директорию для дальнейшего рекдактирования без sudo.
+
+- команда `mkpasswd -m sha-512 hacker123` — генерируем хэш пароля hacker123
+
+-команда `sed "s|^root:[^:]*:|root:$(mkpasswd ...):|" ~/shadow_copy > ~/shadow_modified` — заменяем хэш пароля root в копии файла на наш. sed находит строку root, вырезает старый хэш и подставляет новый
+
+- команда `grep "^root:" ~/shadow_modified` — проверяем, что хэш заменился корректно и поля разделены двоеточиями.
+
+
+Эксплуатация:
+
+3) Исполнение
+
+Суть мисконфига: SGID-бинарник вызывает команду по имени (без полного пути), и атакующий подменяет команду через PATH. 
+
+![alt text](<screenshots/Screenshot From 2026-09-20 18-11-13.png>)
+
+Эксплуатация: 
+Создаём поддельный ps, который читает /etc/shadow
+
+![alt text](<screenshots/Screenshot From 2026-09-20 18-12-27.png>)
+
+Защита:
+
+![alt text](<screenshots/Screenshot From 2026-09-20 18-14-17.png>)
+
+
+***Задание 2***
+
+- Создание администратора
+
+![alt text](<screenshots/Screenshot From 2026-09-20 18-20-12.png>)
+
+
+- Отключение прямого входа под root
+
+![alt text](<screenshots/Screenshot From 2026-09-20 18-22-40.png>)
+
+
+- Запрет SSH-доступа для root
+
+![alt text](<screenshots/Screenshot From 2026-09-20 18-26-39.png>)
+
+- Настройка UMASK и HOME_MODE
+
+![alt text](<screenshots/Screenshot From 2026-09-20 18-31-04.png>)
+
+- Парольная политика по ГОСТ 57580.1
+
+![alt text](<screenshots/Screenshot From 2026-09-20 18-38-31.png>)
+
+![alt text](<screenshots/Screenshot From 2026-09-20 18-38-45.png>)
+
+- Установка неизменяемости на конфигурационный файл
+
+![alt text](<screenshots/Screenshot From 2026-09-20 18-43-00.png>)
