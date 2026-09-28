@@ -34,3 +34,48 @@
 
 ***Задание 2. Capabilities для 3 утилит из GTFOBins***
 
+Немного теории:
+
+-Capabilities — это «расщепление root-прав на отдельные способности». Вместо «всё или ничего» процесс получает конкретные биты: cap_net_raw, cap_net_bind_service, cap_dac_read_search и т. д.
+-GTFOBins — каталог легитимных утилит, которыми можно повысить привилегии, если они запущены от root или с sudo. Классика: find, tar, vim, less, awk, nmap, python и т. д.
+
+- Сперва создал тестового юзера:
+
+![alt text](<screenshots/Screenshot From 2026-09-28 19-29-49.png>)
+
+- Скопировал бинарники утилит в отдельные директории для тестового сценария:
+
+![alt text](<screenshots/Screenshot From 2026-09-28 19-35-23.png>)
+
+- Выставил на эти бинарники пользователя root, убрал SUID, SGID:
+
+![alt text](<screenshots/Screenshot From 2026-09-28 19-41-40.png>)
+
+- Создал тестовый файл с секретами, выставил на него владельца root, обычный пользователь не сможет его прочитать:
+
+![alt text](<screenshots/Screenshot From 2026-09-28 19-46-54.png>)
+
+- Выдал скопированным бинарникам дефолдные capabilities:
+
+`sudo setcap -r /tmp/lab2/find
+sudo setcap -r /tmp/lab2/tar
+sudo setcap -r /tmp/lab2/vim`
+
+- Проверка от имени тестового юзера, что LPE невозможен:
+
+![alt text](<screenshots/Screenshot From 2026-09-28 20-43-18.png>)
+
+Убедились, что при таких capabilities LPE невозможен.
+
+find выполняет id от имени labuser, tar создает архив с обычным файлом, но не может прочитать файл /tmp/root_secret.txt, выдает Permission denied. 
+
+Попытка прочитать через vim файл с секретами:
+
+![alt text](<screenshots/Screenshot From 2026-09-28 20-21-41.png>)
+
+Вывод:
+GTFOBins - это утилиты, опасные только при ошибочной выдаче привилегий. Без SUID, SGID, sudo и capabilities они функциональны, но не повзоляют получить права root.
+
+
+***Задание 3*. Повышение привилегий через системный вызов***
+
