@@ -1,0 +1,4 @@
+---
+- ansible.builtin.import_playbook: 02-webserver.yml
+- ansible.builtin.import_playbook: 03-firewall.yml
+- ansible.builtin.import_playbook: 04-ssh-harden.yml

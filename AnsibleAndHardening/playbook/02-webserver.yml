@@ -1,0 +1,76 @@
+---
+- name: "Установка и настройка nginx"
+  hosts: hardening
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Установить nginx"
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: true
+      tags:
+        - packages
+
+    - name: "Создать нестандартную домашнюю директорию сайта"
+      ansible.builtin.file:
+        path: "{{ web_root }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+      tags:
+        - deploy
+
+    - name: "Загрузить сайт в новую домашнюю директорию"
+      ansible.builtin.copy:
+        src: files/website/
+        dest: "{{ web_root }}/"
+        owner: www-data
+        group: www-data
+        mode: "0644"
+      tags:
+        - deploy
+
+    - name: "Настроить nginx на нестандартный порт и docroot"
+      ansible.builtin.template:
+        src: templates/nginx-site.conf.j2
+        dest: /etc/nginx/sites-available/mysite.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Перезапустить nginx
+      tags:
+        - nginx
+
+    - name: "Отключить сайт по умолчанию"
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Перезапустить nginx
+      tags:
+        - nginx
+
+    - name: "Включить настроенный сайт"
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/mysite.conf
+        dest: /etc/nginx/sites-enabled/mysite.conf
+        state: link
+      notify: Перезапустить nginx
+      tags:
+        - nginx
+
+    - name: "Включить и запустить nginx"
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+      tags:
+        - nginx
+
+  handlers:
+    - name: Перезапустить nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted

@@ -1,0 +1,50 @@
+---
+- name: "Жёсткая настройка SSH и установка auditd"
+  hosts: hardening
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Запретить аутентификацию по паролю"
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?\s*PasswordAuthentication\s+'
+        line: "PasswordAuthentication no"
+        validate: "sshd -t -f %s"
+      notify: Перезапустить sshd
+      tags:
+        - ssh
+
+    - name: "Запретить вход под root"
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?\s*PermitRootLogin\s+'
+        line: "PermitRootLogin no"
+        validate: "sshd -t -f %s"
+      notify: Перезапустить sshd
+      tags:
+        - ssh
+
+    - name: "Установить auditd"
+      ansible.builtin.apt:
+        name:
+          - auditd
+          - audispd-plugins
+        state: present
+        update_cache: true
+      tags:
+        - auditd
+
+    - name: "Включить и запустить auditd"
+      ansible.builtin.service:
+        name: auditd
+        state: started
+        enabled: true
+      tags:
+        - auditd
+
+  handlers:
+    - name: Перезапустить sshd
+      ansible.builtin.service:
+        name: ssh
+        state: restarted

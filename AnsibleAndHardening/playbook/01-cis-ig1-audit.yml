@@ -1,0 +1,86 @@
+---
+- name: "CIS Debian IG1 | аудит 5 настроек"
+  hosts: hardening
+  become: true
+  gather_facts: false
+  vars:
+    check_results: []
+
+  tasks:
+    - name: "Все проверки IG1"
+      tags:
+        - audit
+      block:
+        - name: "CIS 6.1.2 | stat /etc/passwd"
+          ansible.builtin.stat:
+            path: /etc/passwd
+          register: passwd_stat
+
+        - name: "CIS 6.1.2 | оценка прав /etc/passwd"
+          ansible.builtin.set_fact:
+            check_results: "{{ check_results + [{'id': 'CIS 6.1.2', 'desc': 'Права на /etc/passwd ограничены (0644, root:root)',
+              'passed': (passwd_stat.stat.mode == '0644') and (passwd_stat.stat.pw_name == 'root') and (passwd_stat.stat.gr_name == 'root')}] }}"
+
+        - name: "CIS 6.1.4 | stat /etc/shadow"
+          ansible.builtin.stat:
+            path: /etc/shadow
+          register: shadow_stat
+
+        - name: "CIS 6.1.4 | оценка прав /etc/shadow"
+          ansible.builtin.set_fact:
+            check_results: "{{ check_results + [{'id': 'CIS 6.1.4', 'desc': 'Права на /etc/shadow ограничены (root:shadow, не шире 0640)',
+              'passed': (shadow_stat.stat.mode in ['0640', '0600', '0000']) and (shadow_stat.stat.pw_name == 'root') and (shadow_stat.stat.gr_name in ['shadow', 'root'])}] }}"
+
+        - name: "CIS 1.5.3 | текущее значение kernel.randomize_va_space"
+          ansible.builtin.command: sysctl -n kernel.randomize_va_space
+          changed_when: false
+          register: aslr_sysctl
+
+        - name: "CIS 1.5.3 | оценка ASLR"
+          ansible.builtin.set_fact:
+            check_results: "{{ check_results + [{'id': 'CIS 1.5.3', 'desc': 'ASLR включён (kernel.randomize_va_space = 2)',
+              'passed': aslr_sysctl.stdout | trim == '2'}] }}"
+
+        - name: "CIS 1.5.1 | текущее значение fs.suid_dumpable"
+          ansible.builtin.command: sysctl -n fs.suid_dumpable
+          changed_when: false
+          register: suid_dumpable_sysctl
+
+        - name: "CIS 1.5.1 | поиск 'hard core 0' в limits.conf"
+          ansible.builtin.shell: >
+            grep -rEq '^[[:space:]]*\*[[:space:]]+hard[[:space:]]+core[[:space:]]+0'
+            /etc/security/limits.conf /etc/security/limits.d/*.conf 2>/dev/null
+          changed_when: false
+          failed_when: false
+          register: core_limits_grep
+
+        - name: "CIS 1.5.1 | оценка запрета core dump'ов"
+          ansible.builtin.set_fact:
+            check_results: "{{ check_results + [{'id': 'CIS 1.5.1', 'desc': 'Core dump\\'ы запрещены (fs.suid_dumpable=0, hard core 0)',
+              'passed': (suid_dumpable_sysctl.stdout | trim == '0') and (core_limits_grep.rc == 0)}] }}"
+
+        - name: "CIS 5.2.x | эффективная конфигурация sshd"
+          ansible.builtin.command: sshd -T
+          changed_when: false
+          register: sshd_effective_config
+
+        - name: "CIS 5.2.x | оценка MaxAuthTries"
+          ansible.builtin.set_fact:
+            maxauthtries_value: "{{ sshd_effective_config.stdout_lines
+              | select('match', '^maxauthtries') | first | default('maxauthtries 999') | split | last }}"
+
+        - name: "CIS 5.2.x | фиксация результата MaxAuthTries"
+          ansible.builtin.set_fact:
+            check_results: "{{ check_results + [{'id': 'CIS 5.2.x', 'desc': 'SSH MaxAuthTries <= 4',
+              'passed': maxauthtries_value | int <= 4}] }}"
+
+        - name: "Итоговый отчёт по аудиту"
+          ansible.builtin.debug:
+            msg: "{{ item.id }} | {{ 'PASS' if item.passed else 'FAIL' }} | {{ item.desc }}"
+          loop: "{{ check_results }}"
+          loop_control:
+            label: "{{ item.id }}"
+
+        - name: "Сводка"
+          ansible.builtin.debug:
+            msg: "Пройдено проверок: {{ check_results | selectattr('passed') | list | length }} / {{ check_results | length }}"

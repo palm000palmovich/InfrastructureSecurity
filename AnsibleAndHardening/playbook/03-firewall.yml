@@ -1,0 +1,43 @@
+---
+- name: "Установка и настройка ufw"
+  hosts: hardening
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Установить ufw"
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+        update_cache: true
+      tags:
+        - packages
+
+    - name: "Политика по умолчанию — запретить входящие"
+      community.general.ufw:
+        direction: incoming
+        policy: deny
+      tags:
+        - firewall
+
+    - name: "Политика по умолчанию — разрешить исходящие"
+      community.general.ufw:
+        direction: outgoing
+        policy: allow
+      tags:
+        - firewall
+
+    - name: "Разрешить доступ к портам {{ allowed_ports }}"
+      community.general.ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop: "{{ allowed_ports }}"
+      tags:
+        - firewall
+
+    - name: "Включить ufw"
+      community.general.ufw:
+        state: enabled
+      tags:
+        - firewall

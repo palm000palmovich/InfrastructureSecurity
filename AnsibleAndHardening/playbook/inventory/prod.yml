@@ -1,0 +1,5 @@
+---
+hardening:
+  hosts:
+    hardening-vm:
+      ansible_host: 153.51.118.106
