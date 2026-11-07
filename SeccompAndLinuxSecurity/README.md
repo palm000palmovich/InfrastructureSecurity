@@ -260,4 +260,25 @@ firejail в себя принимает все необходимые сиско
 | **Итог: capability** | (нет `capability net_bind_service,`) | — | Сайт слушает **8080** (> 1024), привилегированный порт не используется — capability не нужна. При порте **80** пришлось бы добавить `capability net_bind_service,` | Если слушать 80 без capability — `bind() failed (13: Permission denied)` |
 | **Итог: проверка** | `sudo apparmor_parser -r ...`<br>`sudo aa-complain ...` → `journalctl -k \| grep DENIED`<br>`sudo aa-enforce ...`<br>`sudo aa-status \| grep nginx-mysite` | — | Сначала `complain` (только логи), чтобы увидеть нехватку правил; затем `enforce` (блокировка). Формат лога: `apparmor="DENIED" operation="open" profile="nginx-mysite" name="..." comm="..." requested_mask="..." denied_mask="..."` | Если сразу `enforce` без `complain` — nginx может упасть на первом же `DENIED`, и причину придётся искать в `journalctl` |
 
-kdkdk
+- Проверка корректности профиля:
+
+`sudo apparmor_parser -r /etc/apparmor.d/usr.sbin.nginx.mysite`
+
+Нет выводов => профиль настроен корректно.
+
+- Проверим, что профиль виден:
+
+![alt text](<screenshots/Screenshot From 2026-11-07 13-41-12.png>)
+
+- Переведем профили AppArmor в режим enforce:
+
+`sudo aa-enforce /etc/apparmor.d/usr.sbin.nginx.mysite`
+
+
+- Проверим, что профиль в enforce и nginx под ним:
+
+![alt text](<screenshots/Screenshot From 2026-11-07 14-10-35.png>)
+
+- Проверим, что запреты работают(чтение секретов):
+
+![alt text](<screenshots/Screenshot From 2026-11-07 14-16-05.png>)
